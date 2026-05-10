@@ -1,0 +1,1018 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>长文档智能处理 Agent</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@3.19.0/dist/tabler-icons.min.css">
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --bg: #ffffff;
+  --bg2: #f7f7f5;
+  --bg3: #f0f0ec;
+  --text: #1a1a1a;
+  --text2: #6b6b6b;
+  --text3: #a0a0a0;
+  --border: rgba(0,0,0,0.1);
+  --border2: rgba(0,0,0,0.18);
+  --blue: #185FA5;
+  --blue-bg: #E6F1FB;
+  --blue-border: #85B7EB;
+  --blue-text: #0C447C;
+  --green-bg: #EAF3DE;
+  --green-text: #27500A;
+  --green-border: #97C459;
+  --amber-bg: #FAEEDA;
+  --amber-text: #854F0B;
+  --red-bg: #FCEBEB;
+  --red-text: #A32D2D;
+  --radius: 8px;
+  --radius-lg: 12px;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #1e1e1c;
+    --bg2: #282826;
+    --bg3: #323230;
+    --text: #f0f0ec;
+    --text2: #a0a0a0;
+    --text3: #6b6b6b;
+    --border: rgba(255,255,255,0.1);
+    --border2: rgba(255,255,255,0.18);
+    --blue: #378ADD;
+    --blue-bg: #042C53;
+    --blue-border: #185FA5;
+    --blue-text: #B5D4F4;
+    --green-bg: #173404;
+    --green-text: #C0DD97;
+    --green-border: #3B6D11;
+    --amber-bg: #412402;
+    --amber-text: #FAC775;
+    --red-bg: #501313;
+    --red-text: #F7C1C1;
+  }
+}
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', sans-serif;
+  background: var(--bg3);
+  color: var(--text);
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+/* ── Top Nav ── */
+.nav {
+  background: var(--bg);
+  border-bottom: 0.5px solid var(--border);
+  padding: 0 24px;
+  height: 56px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  position: sticky;
+  top: 0;
+  z-index: 100;
+}
+.nav-icon {
+  width: 32px; height: 32px;
+  background: var(--blue-bg);
+  border-radius: var(--radius);
+  display: flex; align-items: center; justify-content: center;
+  color: var(--blue);
+  font-size: 16px;
+}
+.nav-title { font-size: 15px; font-weight: 500; }
+.nav-sub { font-size: 12px; color: var(--text2); margin-left: 4px; }
+.nav-spacer { flex: 1; }
+.api-key-area { display: flex; align-items: center; gap: 8px; }
+.api-input {
+  width: 260px; padding: 6px 12px;
+  border: 0.5px solid var(--border2);
+  border-radius: var(--radius);
+  background: var(--bg2);
+  color: var(--text);
+  font-size: 13px;
+  outline: none;
+}
+.api-input:focus { border-color: var(--blue); box-shadow: 0 0 0 2px rgba(55,138,221,0.15); }
+.api-label { font-size: 12px; color: var(--text2); white-space: nowrap; }
+
+/* ── Status Bar ── */
+.status-bar {
+  background: var(--bg2);
+  border-bottom: 0.5px solid var(--border);
+  padding: 8px 24px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.step-badge {
+  display: flex; align-items: center; gap: 5px;
+  font-size: 11px; padding: 4px 10px;
+  border-radius: 100px;
+  border: 0.5px solid var(--border);
+  background: var(--bg);
+  color: var(--text2);
+  white-space: nowrap;
+  transition: all 0.2s;
+}
+.step-badge.active {
+  background: var(--blue-bg);
+  color: var(--blue-text);
+  border-color: var(--blue-border);
+}
+.step-badge.done {
+  background: var(--green-bg);
+  color: var(--green-text);
+  border-color: var(--green-border);
+}
+.step-dot { width: 6px; height: 6px; border-radius: 50%; background: currentColor; opacity: 0.6; }
+.step-arrow { color: var(--text3); font-size: 12px; }
+
+/* ── Layout ── */
+.main-layout {
+  flex: 1;
+  display: flex;
+  max-width: 1200px;
+  width: 100%;
+  margin: 0 auto;
+  padding: 20px;
+  gap: 16px;
+  min-height: 0;
+}
+
+/* ── Left Panel ── */
+.left-panel {
+  width: 280px;
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.card {
+  background: var(--bg);
+  border: 0.5px solid var(--border);
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+}
+
+.card-header {
+  padding: 10px 14px;
+  border-bottom: 0.5px solid var(--border);
+  font-size: 11px;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text3);
+  background: var(--bg2);
+}
+
+/* Upload zone */
+.upload-zone {
+  margin: 12px;
+  border: 1.5px dashed var(--border2);
+  border-radius: var(--radius-lg);
+  padding: 20px 12px;
+  text-align: center;
+  cursor: pointer;
+  transition: all 0.2s;
+  background: var(--bg2);
+}
+.upload-zone:hover, .upload-zone.drag-over {
+  border-color: var(--blue);
+  background: var(--blue-bg);
+}
+.upload-zone i { font-size: 28px; color: var(--text3); display: block; margin-bottom: 8px; }
+.upload-zone:hover i, .upload-zone.drag-over i { color: var(--blue); }
+.upload-text { font-size: 13px; color: var(--text2); }
+.upload-text span { color: var(--blue); cursor: pointer; text-decoration: underline; }
+.upload-formats { font-size: 11px; color: var(--text3); margin-top: 4px; }
+#fileInput { display: none; }
+
+/* Doc list */
+.doc-list { max-height: 200px; overflow-y: auto; }
+.doc-item {
+  display: flex; align-items: center; gap: 10px;
+  padding: 9px 14px;
+  cursor: pointer;
+  border-bottom: 0.5px solid var(--border);
+  transition: background 0.15s;
+}
+.doc-item:last-child { border-bottom: none; }
+.doc-item:hover { background: var(--bg2); }
+.doc-item.selected { background: var(--blue-bg); }
+.doc-icon { font-size: 18px; color: var(--text3); flex-shrink: 0; }
+.doc-item.selected .doc-icon { color: var(--blue); }
+.doc-info { flex: 1; min-width: 0; }
+.doc-name { font-size: 13px; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.doc-meta { font-size: 11px; color: var(--text2); margin-top: 1px; }
+.doc-status { font-size: 10px; padding: 2px 7px; border-radius: 100px; flex-shrink: 0; }
+.doc-status.ready { background: var(--green-bg); color: var(--green-text); }
+.doc-del {
+  font-size: 14px; color: var(--text3); cursor: pointer;
+  padding: 2px; border-radius: 4px; flex-shrink: 0;
+  display: none;
+}
+.doc-item:hover .doc-del { display: block; }
+.doc-del:hover { color: var(--red-text); background: var(--red-bg); }
+
+.empty-doc {
+  padding: 20px; text-align: center;
+  color: var(--text3); font-size: 13px;
+}
+.empty-doc i { font-size: 24px; display: block; margin-bottom: 8px; }
+
+/* Task selector */
+.task-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px;
+  padding: 10px;
+}
+.task-btn {
+  padding: 10px 6px;
+  border-radius: var(--radius);
+  border: 0.5px solid var(--border);
+  background: var(--bg);
+  cursor: pointer;
+  font-size: 12px;
+  text-align: center;
+  color: var(--text2);
+  transition: all 0.15s;
+  display: flex; flex-direction: column; align-items: center; gap: 5px;
+  font-family: inherit;
+}
+.task-btn:hover { border-color: var(--blue-border); color: var(--blue); background: var(--blue-bg); }
+.task-btn.selected {
+  border-color: var(--blue);
+  border-width: 1.5px;
+  color: var(--blue-text);
+  background: var(--blue-bg);
+}
+.task-btn i { font-size: 18px; }
+
+/* ── Right Panel ── */
+.right-panel {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-width: 0;
+}
+
+/* Toolbar */
+.toolbar {
+  background: var(--bg);
+  border: 0.5px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: 12px 14px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.toolbar-input {
+  flex: 1;
+  padding: 8px 12px;
+  border: 0.5px solid var(--border2);
+  border-radius: var(--radius);
+  background: var(--bg2);
+  color: var(--text);
+  font-size: 13px;
+  font-family: inherit;
+  outline: none;
+}
+.toolbar-input:focus { border-color: var(--blue); box-shadow: 0 0 0 2px rgba(55,138,221,0.12); }
+.btn {
+  padding: 8px 14px;
+  border-radius: var(--radius);
+  border: 0.5px solid var(--border2);
+  background: var(--bg);
+  color: var(--text);
+  font-size: 13px;
+  cursor: pointer;
+  display: flex; align-items: center; gap: 6px;
+  transition: all 0.15s;
+  white-space: nowrap;
+  font-family: inherit;
+}
+.btn:hover { background: var(--bg2); }
+.btn.primary { background: var(--blue); color: white; border-color: var(--blue); }
+.btn.primary:hover { background: var(--blue-text); }
+.btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+/* Output area */
+.output-card {
+  flex: 1;
+  background: var(--bg);
+  border: 0.5px solid var(--border);
+  border-radius: var(--radius-lg);
+  display: flex;
+  flex-direction: column;
+  min-height: 400px;
+  overflow: hidden;
+}
+.output-scroll {
+  flex: 1;
+  overflow-y: auto;
+  padding: 20px;
+}
+
+.empty-state {
+  display: flex; flex-direction: column;
+  align-items: center; justify-content: center;
+  height: 100%; gap: 12px;
+  color: var(--text3);
+}
+.empty-state i { font-size: 48px; }
+.empty-state p { font-size: 14px; }
+.empty-state small { font-size: 12px; color: var(--text3); margin-top: -8px; }
+
+/* Thinking steps */
+.thinking-block { display: flex; flex-direction: column; gap: 10px; margin-bottom: 20px; }
+.thinking-step {
+  display: flex; align-items: center; gap: 10px;
+  font-size: 13px; color: var(--text2);
+  padding: 8px 12px;
+  border-radius: var(--radius);
+  background: var(--bg2);
+  border: 0.5px solid var(--border);
+}
+.thinking-step.active { color: var(--blue); border-color: var(--blue-border); background: var(--blue-bg); }
+.thinking-step.done { color: var(--green-text); border-color: var(--green-border); background: var(--green-bg); }
+.thinking-step i { font-size: 16px; flex-shrink: 0; }
+
+/* Spinner */
+.spinner {
+  width: 14px; height: 14px;
+  border: 2px solid rgba(55,138,221,0.25);
+  border-top-color: var(--blue);
+  border-radius: 50%;
+  animation: spin 0.7s linear infinite;
+  flex-shrink: 0;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* Result */
+.result-block {
+  background: var(--bg);
+  border: 0.5px solid var(--border);
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+  margin-bottom: 16px;
+}
+.result-header {
+  padding: 10px 16px;
+  border-bottom: 0.5px solid var(--border);
+  background: var(--bg2);
+  display: flex; align-items: center; gap: 8px;
+  font-size: 13px; font-weight: 500;
+}
+.result-header i { font-size: 16px; color: var(--blue); }
+.result-body {
+  padding: 16px 20px;
+  font-size: 14px;
+  line-height: 1.8;
+  color: var(--text);
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.copy-row {
+  display: flex; justify-content: flex-end;
+  padding: 8px 16px 12px; gap: 6px;
+  border-top: 0.5px solid var(--border);
+}
+.copy-btn {
+  font-size: 12px; padding: 5px 12px;
+  border-radius: var(--radius);
+  border: 0.5px solid var(--border);
+  background: transparent; cursor: pointer;
+  color: var(--text2);
+  display: flex; align-items: center; gap: 5px;
+  transition: all 0.15s;
+  font-family: inherit;
+}
+.copy-btn:hover { background: var(--bg2); }
+
+/* Model badge */
+.model-badge {
+  margin-left: auto;
+  font-size: 11px;
+  padding: 2px 8px;
+  border-radius: 100px;
+  background: var(--blue-bg);
+  color: var(--blue-text);
+  border: 0.5px solid var(--blue-border);
+}
+
+/* Alert */
+.alert {
+  padding: 10px 14px;
+  border-radius: var(--radius);
+  font-size: 13px;
+  display: flex; align-items: flex-start; gap: 8px;
+  margin-bottom: 12px;
+}
+.alert.warning { background: var(--amber-bg); color: var(--amber-text); border: 0.5px solid #FAC775; }
+.alert.error { background: var(--red-bg); color: var(--red-text); border: 0.5px solid #F09595; }
+.alert i { font-size: 16px; flex-shrink: 0; margin-top: 1px; }
+
+/* Responsive */
+@media (max-width: 768px) {
+  .main-layout { flex-direction: column; padding: 12px; }
+  .left-panel { width: 100%; }
+  .api-input { width: 180px; }
+  .nav-sub { display: none; }
+}
+</style>
+</head>
+<body>
+
+<!-- Nav -->
+<nav class="nav">
+  <div class="nav-icon"><i class="ti ti-file-text"></i></div>
+  <div class="nav-title">长文档智能处理 Agent</div>
+  <span class="nav-sub">· 本地版</span>
+  <div class="nav-spacer"></div>
+  <div class="api-key-area">
+    <label class="api-label" for="apiKeyInput"><i class="ti ti-key" style="font-size:13px;vertical-align:-1px"></i> API Key</label>
+    <input type="password" class="api-input" id="apiKeyInput"
+      placeholder="sk-ant-xxxxxxxx…"
+      title="输入你的 Anthropic API Key">
+    <button class="btn" onclick="saveKey()" title="保存到 localStorage">
+      <i class="ti ti-device-floppy"></i>保存
+    </button>
+  </div>
+</nav>
+
+<!-- Status Bar -->
+<div class="status-bar" id="statusBar">
+  <div class="step-badge active" id="step1"><div class="step-dot"></div>上传文档</div>
+  <span class="step-arrow">›</span>
+  <div class="step-badge" id="step2"><div class="step-dot"></div>选择任务</div>
+  <span class="step-arrow">›</span>
+  <div class="step-badge" id="step3"><div class="step-dot"></div>AI 分析</div>
+  <span class="step-arrow">›</span>
+  <div class="step-badge" id="step4"><div class="step-dot"></div>查看结果</div>
+</div>
+
+<!-- Main -->
+<div class="main-layout">
+
+  <!-- Left Panel -->
+  <div class="left-panel">
+
+    <!-- Upload -->
+    <div class="card">
+      <div class="card-header">📁 文档库</div>
+      <div class="upload-zone" id="uploadZone" onclick="document.getElementById('fileInput').click()">
+        <i class="ti ti-cloud-upload"></i>
+        <div class="upload-text">拖放文件或 <span>点击上传</span></div>
+        <div class="upload-formats">PDF · TXT · MD · DOCX · HTML</div>
+        <input type="file" id="fileInput" accept=".pdf,.txt,.md,.docx,.doc,.html,.htm,.csv,.json" multiple>
+      </div>
+      <div class="doc-list" id="docList">
+        <div class="empty-doc">
+          <i class="ti ti-inbox"></i>暂无文档
+        </div>
+      </div>
+    </div>
+
+    <!-- Task -->
+    <div class="card">
+      <div class="card-header">⚡ 选择处理任务</div>
+      <div class="task-grid" id="taskGrid">
+        <button class="task-btn selected" data-task="summary" onclick="selectTask(this,'summary')">
+          <i class="ti ti-file-description"></i>智能摘要
+        </button>
+        <button class="task-btn" data-task="extract" onclick="selectTask(this,'extract')">
+          <i class="ti ti-list-search"></i>关键信息提取
+        </button>
+        <button class="task-btn" data-task="qa" onclick="selectTask(this,'qa')">
+          <i class="ti ti-message-question"></i>问答对话
+        </button>
+        <button class="task-btn" data-task="translate" onclick="selectTask(this,'translate')">
+          <i class="ti ti-language"></i>翻译润色
+        </button>
+        <button class="task-btn" data-task="mindmap" onclick="selectTask(this,'mindmap')">
+          <i class="ti ti-sitemap"></i>思维导图
+        </button>
+        <button class="task-btn" data-task="critique" onclick="selectTask(this,'critique')">
+          <i class="ti ti-checklist"></i>审阅批注
+        </button>
+        <button class="task-btn" data-task="outline" onclick="selectTask(this,'outline')">
+          <i class="ti ti-list-numbers"></i>大纲生成
+        </button>
+        <button class="task-btn" data-task="polish" onclick="selectTask(this,'polish')">
+          <i class="ti ti-sparkles"></i>全文改写
+        </button>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- Right Panel -->
+  <div class="right-panel">
+
+    <!-- Toolbar -->
+    <div class="toolbar">
+      <input class="toolbar-input" id="userQuery" placeholder="输入问题或补充指令（可选）…" onkeydown="if(event.key==='Enter'&&!event.shiftKey)runAgent()">
+      <button class="btn" onclick="clearOutput()" title="清空结果"><i class="ti ti-trash"></i></button>
+      <button class="btn" onclick="exportResult()" title="导出结果"><i class="ti ti-download"></i>导出</button>
+      <button class="btn primary" id="runBtn" onclick="runAgent()" disabled>
+        <i class="ti ti-sparkles"></i>开始处理
+      </button>
+    </div>
+
+    <!-- Output -->
+    <div class="output-card">
+      <div class="output-scroll" id="outputArea">
+        <div class="empty-state" id="emptyState">
+          <i class="ti ti-file-upload"></i>
+          <p>上传文档，选择任务，开始分析</p>
+          <small>支持最长约 15,000 字的文档内容</small>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<script>
+// ── State ──
+let docs = [];
+let selectedDocIdx = null;
+let selectedTask = 'summary';
+let isProcessing = false;
+let lastResult = '';
+
+// ── API Key ──
+(function loadKey() {
+  const saved = localStorage.getItem('anthropic_api_key');
+  if (saved) document.getElementById('apiKeyInput').value = saved;
+})();
+
+function saveKey() {
+  const key = document.getElementById('apiKeyInput').value.trim();
+  if (!key) return alert('请输入 API Key');
+  localStorage.setItem('anthropic_api_key', key);
+  const btn = event.target.closest('button');
+  const orig = btn.innerHTML;
+  btn.innerHTML = '<i class="ti ti-check"></i>已保存';
+  setTimeout(() => btn.innerHTML = orig, 1500);
+}
+
+function getApiKey() {
+  return document.getElementById('apiKeyInput').value.trim() ||
+         localStorage.getItem('anthropic_api_key') || '';
+}
+
+// ── Task Configs ──
+const taskConfigs = {
+  summary: {
+    label: '智能摘要', icon: 'ti-file-description',
+    prompt: (text, q) => `你是专业文档分析助手。请对以下文档进行全面深入分析，生成高质量结构化摘要。
+
+输出格式（严格按此结构）：
+## 核心主旨
+（2-3句话概括文档核心）
+
+## 主要内容
+（5-8条分点，每条20字左右）
+
+## 关键结论 / 重要观点
+（3-5条，聚焦最有价值的内容）
+
+## 适合人群
+（一句话说明哪类读者最应该读这篇文档）
+${q ? `\n## 用户重点关注\n${q}` : ''}
+
+---
+文档内容：
+${text.substring(0, 12000)}`
+  },
+  extract: {
+    label: '关键信息提取', icon: 'ti-list-search',
+    prompt: (text, q) => `你是信息提取专家。请从文档中精准提取各类关键信息，分类呈现。
+
+提取维度：
+📊 【关键数据 & 指标】数字、百分比、统计
+👤 【重要人物 & 机构】人名、组织名、地名
+📅 【时间线 & 事件】日期、事件、节点
+💡 【核心概念 & 术语】专业词汇与定义
+✅【行动项 & 建议】文中明确或隐含的行动建议
+⚠️ 【风险 & 问题】提到的挑战、风险、待解决问题
+${q ? `\n🎯 用户重点关注：${q}` : ''}
+
+---
+文档内容：
+${text.substring(0, 12000)}`
+  },
+  qa: {
+    label: '问答对话', icon: 'ti-message-question',
+    prompt: (text, q) => `你是文档问答专家。
+
+${q
+  ? `用户问题：${q}\n\n请基于以下文档内容，详细准确地回答这个问题。如果文档中没有相关信息，请明确说明。`
+  : `请基于以下文档内容，主动生成并回答6个最有价值的问题（覆盖：核心概念、关键细节、实际应用、潜在疑问）。\n\n格式：\nQ1: 问题\nA1: 回答\n\nQ2: 问题\nA2: 回答\n（以此类推）`}
+
+---
+文档内容：
+${text.substring(0, 12000)}`
+  },
+  translate: {
+    label: '翻译润色', icon: 'ti-language',
+    prompt: (text, q) => `你是专业翻译与写作润色专家。
+
+任务说明：
+- 检测文档语言
+- 如是中文 → 润色提升，修正语病，使表达更专业流畅
+- 如是英文 → 翻译为中文，保持原意，术语准确
+- 如是其他语言 → 翻译为中文
+${q ? `\n特别要求：${q}` : ''}
+
+请同时在最后提供「润色说明」或「翻译说明」，简述主要改动。
+
+---
+原文：
+${text.substring(0, 6000)}`
+  },
+  mindmap: {
+    label: '思维导图', icon: 'ti-sitemap',
+    prompt: (text, q) => `你是知识结构化专家。请将文档内容整理为清晰的思维导图文本格式。
+
+格式要求：
+【文档主题】
+├── 一级分支：主要章节/主题
+│   ├── 二级分支：子主题
+│   │   └── 三级分支：关键细节
+│   └── 二级分支
+└── 一级分支
+
+要求：层次分明（最多4级），每节点不超过15字，充分覆盖文档内容。
+${q ? `\n重点展开：${q}` : ''}
+
+---
+文档内容：
+${text.substring(0, 12000)}`
+  },
+  critique: {
+    label: '审阅批注', icon: 'ti-checklist',
+    prompt: (text, q) => `你是资深文档审阅专家。请对文档进行全面专业审阅。
+
+审阅维度：
+1. **逻辑性**：论证是否严密，结构是否清晰
+2. **完整性**：是否遗漏重要内容或论据
+3. **准确性**：数据、引用、表述是否准确
+4. **可读性**：语言是否流畅，表达是否清晰
+5. **创新性**：观点是否独特有价值
+
+请对每个维度给出：评分（1-10）、具体评价、改进建议。
+
+最后给出：
+- 综合评分：X/10
+- 最大优点
+- 最需改进的3点（附具体修改示例）
+${q ? `\n重点审阅角度：${q}` : ''}
+
+---
+文档内容：
+${text.substring(0, 12000)}`
+  },
+  outline: {
+    label: '大纲生成', icon: 'ti-list-numbers',
+    prompt: (text, q) => `你是内容策划专家。请基于文档内容，生成一个专业完整的文章大纲。
+
+大纲格式：
+# 标题建议
+## 一、章节标题
+### 1.1 小节标题
+- 要点
+- 要点
+### 1.2 小节标题
+## 二、章节标题
+（以此类推）
+
+附：
+- 核心论点：
+- 目标读者：
+- 推荐字数范围：
+${q ? `\n用户要求：${q}` : ''}
+
+---
+文档内容：
+${text.substring(0, 12000)}`
+  },
+  polish: {
+    label: '全文改写', icon: 'ti-sparkles',
+    prompt: (text, q) => `你是顶级内容写作专家。请对文档进行全面改写优化。
+
+改写要求：
+- 保留核心内容与逻辑
+- 大幅提升语言质量，使表达更专业、生动
+- 优化段落结构，增强可读性
+- 修正所有语法、标点问题
+- 增加必要的过渡句，使行文流畅
+${q ? `\n特殊要求：${q}` : ''}
+
+请先输出改写后的全文，再附上「改写说明」（主要改动点）。
+
+---
+原文：
+${text.substring(0, 8000)}`
+  }
+};
+
+// ── Step UI ──
+function setStep(n) {
+  for (let i = 1; i <= 4; i++) {
+    const el = document.getElementById('step' + i);
+    if (i < n) el.className = 'step-badge done';
+    else if (i === n) el.className = 'step-badge active';
+    else el.className = 'step-badge';
+  }
+}
+
+// ── Task Selection ──
+function selectTask(el, task) {
+  document.querySelectorAll('.task-btn').forEach(b => b.classList.remove('selected'));
+  el.classList.add('selected');
+  selectedTask = task;
+  updatePlaceholder();
+}
+
+function updatePlaceholder() {
+  const ph = {
+    summary: '例如：重点关注第三章内容…',
+    extract: '例如：只提取财务相关数据…',
+    qa: '输入你想问的问题（留空则自动生成问题）…',
+    translate: '例如：翻译为英文 / 采用学术风格…',
+    mindmap: '例如：重点展开技术架构部分…',
+    critique: '例如：从学术写作角度审阅…',
+    outline: '例如：生成适合B端产品报告的大纲…',
+    polish: '例如：改写为正式商务报告风格…'
+  };
+  document.getElementById('userQuery').placeholder = ph[selectedTask] || '输入补充指令（可选）…';
+}
+
+// ── Document Handling ──
+function fmtSize(b) {
+  if (b < 1024) return b + 'B';
+  if (b < 1048576) return (b/1024).toFixed(1) + 'KB';
+  return (b/1048576).toFixed(1) + 'MB';
+}
+
+function getIcon(name) {
+  const ext = name.split('.').pop().toLowerCase();
+  return { pdf:'ti-file-type-pdf', txt:'ti-file-text', md:'ti-markdown',
+           docx:'ti-file-word', doc:'ti-file-word', html:'ti-file-code',
+           htm:'ti-file-code', csv:'ti-file-spreadsheet', json:'ti-file-code'
+         }[ext] || 'ti-file';
+}
+
+function renderDocList() {
+  const el = document.getElementById('docList');
+  if (!docs.length) {
+    el.innerHTML = `<div class="empty-doc"><i class="ti ti-inbox"></i>暂无文档</div>`;
+    return;
+  }
+  el.innerHTML = docs.map((d, i) => `
+    <div class="doc-item ${selectedDocIdx===i?'selected':''}" onclick="selectDoc(${i})">
+      <i class="ti ${d.icon} doc-icon"></i>
+      <div class="doc-info">
+        <div class="doc-name" title="${d.name}">${d.name}</div>
+        <div class="doc-meta">${d.size} · ${d.chars.toLocaleString()}字</div>
+      </div>
+      <span class="doc-status ready">就绪</span>
+      <span class="doc-del ti ti-x" onclick="deleteDoc(event,${i})" title="删除"></span>
+    </div>`).join('');
+}
+
+function selectDoc(i) {
+  selectedDocIdx = i;
+  renderDocList();
+  document.getElementById('runBtn').disabled = false;
+  if (selectedDocIdx !== null) setStep(2);
+}
+
+function deleteDoc(e, i) {
+  e.stopPropagation();
+  docs.splice(i, 1);
+  if (selectedDocIdx >= docs.length) selectedDocIdx = docs.length ? docs.length - 1 : null;
+  renderDocList();
+  if (!docs.length) {
+    document.getElementById('runBtn').disabled = true;
+    setStep(1);
+  }
+}
+
+function handleFiles(files) {
+  Array.from(files).forEach(file => {
+    const reader = new FileReader();
+    reader.onload = e => {
+      const text = e.target.result;
+      // Check duplicate
+      if (docs.find(d => d.name === file.name)) return;
+      docs.push({ name:file.name, size:fmtSize(file.size), chars:text.length, text, icon:getIcon(file.name) });
+      if (selectedDocIdx === null) selectedDocIdx = 0;
+      renderDocList();
+      document.getElementById('runBtn').disabled = false;
+      setStep(2);
+    };
+    reader.onerror = () => alert(`读取文件失败: ${file.name}`);
+    reader.readAsText(file, 'UTF-8');
+  });
+}
+
+document.getElementById('fileInput').addEventListener('change', e => { handleFiles(e.target.files); e.target.value=''; });
+
+const zone = document.getElementById('uploadZone');
+zone.addEventListener('dragover', e => { e.preventDefault(); zone.classList.add('drag-over'); });
+zone.addEventListener('dragleave', () => zone.classList.remove('drag-over'));
+zone.addEventListener('drop', e => { e.preventDefault(); zone.classList.remove('drag-over'); handleFiles(e.dataTransfer.files); });
+
+// ── Clear ──
+function clearOutput() {
+  lastResult = '';
+  document.getElementById('outputArea').innerHTML = `
+    <div class="empty-state" id="emptyState">
+      <i class="ti ti-file-upload"></i>
+      <p>上传文档，选择任务，开始分析</p>
+      <small>支持最长约 15,000 字的文档内容</small>
+    </div>`;
+  if (docs.length) setStep(2); else setStep(1);
+}
+
+// ── Export ──
+function exportResult() {
+  if (!lastResult) return alert('没有可导出的内容');
+  const doc = docs[selectedDocIdx];
+  const task = taskConfigs[selectedTask].label;
+  const content = `# ${task} — ${doc ? doc.name : '文档'}\n\n生成时间：${new Date().toLocaleString()}\n\n---\n\n${lastResult}`;
+  const blob = new Blob([content], {type:'text/markdown;charset=utf-8'});
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = `${task}_${Date.now()}.md`;
+  a.click();
+}
+
+// ── Run Agent ──
+async function runAgent() {
+  if (isProcessing) return;
+  const apiKey = getApiKey();
+  if (!apiKey) {
+    alert('请先在右上角填入你的 Anthropic API Key！\n\n获取地址：https://console.anthropic.com/');
+    return;
+  }
+  if (selectedDocIdx === null || !docs[selectedDocIdx]) {
+    alert('请先上传并选择一个文档');
+    return;
+  }
+
+  isProcessing = true;
+  lastResult = '';
+  setStep(3);
+
+  const doc = docs[selectedDocIdx];
+  const query = document.getElementById('userQuery').value.trim();
+  const config = taskConfigs[selectedTask];
+  const output = document.getElementById('outputArea');
+  const btn = document.getElementById('runBtn');
+  btn.disabled = true;
+  btn.innerHTML = '<div class="spinner"></div>处理中…';
+
+  const steps = [
+    { icon:'ti-file-search', label:`读取文档：${doc.name}` },
+    { icon:'ti-brain', label:'Claude AI 深度理解内容…' },
+    { icon:'ti-wand', label:`执行任务：${config.label}…` }
+  ];
+
+  output.innerHTML = `
+    <div class="thinking-block" id="thinkBlock">
+      ${steps.map((s,i)=>`
+        <div class="thinking-step ${i===0?'active':''}" id="ts${i}">
+          <i class="ti ${s.icon}"></i>${s.label}
+        </div>`).join('')}
+    </div>`;
+
+  steps.forEach((_,i) => setTimeout(() => {
+    steps.forEach((__,j) => {
+      const el = document.getElementById('ts'+j);
+      if (!el) return;
+      if (j<i) el.className='thinking-step done';
+      else if (j===i) el.className='thinking-step active';
+      else el.className='thinking-step';
+    });
+  }, i*700));
+
+  try {
+    const prompt = config.prompt(doc.text, query);
+    const resp = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-api-key': apiKey,
+        'anthropic-version': '2023-06-01'
+      },
+      body: JSON.stringify({
+        model: 'claude-sonnet-4-20250514',
+        max_tokens: 4096,
+        stream: true,
+        messages: [{ role:'user', content: prompt }]
+      })
+    });
+
+    if (resp.status === 401) throw new Error('API Key 无效，请检查后重试');
+    if (resp.status === 529) throw new Error('API 暂时过载，请稍后重试');
+    if (!resp.ok) throw new Error(`请求失败 (${resp.status})，请检查 API Key 和网络`);
+
+    // Add result block
+    const resultBlock = document.createElement('div');
+    resultBlock.className = 'result-block';
+    resultBlock.innerHTML = `
+      <div class="result-header">
+        <i class="ti ${config.icon}"></i>${config.label} 结果
+        <span class="model-badge">claude-sonnet-4</span>
+      </div>
+      <div class="result-body" id="streamResult" style="color:var(--text2);font-style:italic">正在生成…</div>`;
+    output.appendChild(resultBlock);
+
+    const reader = resp.body.getReader();
+    const decoder = new TextDecoder();
+    const resultEl = document.getElementById('streamResult');
+    let firstChunk = true;
+    let buffer = '';
+
+    while (true) {
+      const {done, value} = await reader.read();
+      if (done) break;
+      buffer += decoder.decode(value, {stream:true});
+      const lines = buffer.split('\n');
+      buffer = lines.pop();
+
+      for (const line of lines) {
+        if (!line.startsWith('data: ')) continue;
+        const data = line.slice(6).trim();
+        if (data === '[DONE]') continue;
+        try {
+          const json = JSON.parse(data);
+          const delta = json?.delta?.text || '';
+          if (delta) {
+            if (firstChunk) {
+              firstChunk = false;
+              resultEl.style.fontStyle = 'normal';
+              resultEl.style.color = 'var(--text)';
+              resultEl.textContent = '';
+              steps.forEach((_,j) => {
+                const el = document.getElementById('ts'+j);
+                if (el) el.className='thinking-step done';
+              });
+            }
+            lastResult += delta;
+            resultEl.textContent = lastResult;
+          }
+        } catch {}
+      }
+    }
+
+    // Copy & Export row
+    const copyRow = document.createElement('div');
+    copyRow.className = 'copy-row';
+    copyRow.innerHTML = `
+      <button class="copy-btn" id="copyBtn" onclick="doCopy()">
+        <i class="ti ti-copy"></i>复制全文
+      </button>`;
+    resultBlock.appendChild(copyRow);
+    setStep(4);
+
+  } catch (err) {
+    const errDiv = document.createElement('div');
+    errDiv.className = 'alert error';
+    errDiv.innerHTML = `<i class="ti ti-alert-circle"></i><div><strong>处理失败：</strong>${err.message}</div>`;
+    output.appendChild(errDiv);
+  } finally {
+    isProcessing = false;
+    btn.disabled = false;
+    btn.innerHTML = '<i class="ti ti-sparkles"></i>开始处理';
+  }
+}
+
+function doCopy() {
+  navigator.clipboard.writeText(lastResult).then(() => {
+    const btn = document.getElementById('copyBtn');
+    if (!btn) return;
+    btn.innerHTML = '<i class="ti ti-check"></i>已复制';
+    setTimeout(() => btn.innerHTML='<i class="ti ti-copy"></i>复制全文', 2000);
+  });
+}
+
+updatePlaceholder();
+</script>
+</body>
+</html>
